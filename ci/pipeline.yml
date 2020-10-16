@@ -1,0 +1,67 @@
+---
+resources:
+- name: fluentd-s3-docker-tag
+  type: semver
+  source:
+    driver: s3
+    key: fluentd-s3-tag
+    bucket: pcf-docker-pipeline
+    access_key_id: ((aws_access_key_id))
+    secret_access_key: ((aws_secret_access_key))
+    region_name: eu-west-1
+
+- name: fluentd-s3-github
+  type: git
+  source:
+    uri: git@github.com:EngineerBetter/fluentd-s3-image.git
+    branch: master
+    private_key: ((github_private_key))
+
+- name: fluentd-s3-image
+  type: docker-image
+  source:
+    username: ((dockerhub_user))
+    password: ((dockerhub_password))
+    repository: engineerbetter/fluentd-s3
+
+- name: base-image
+  type: registry-image
+  source:
+    repository: fluent/fluentd
+    tag: edge
+
+jobs:
+- name: set-pipeline
+  serial: true
+  plan:
+  - get: fluentd-s3-github
+    trigger: true
+  - set_pipeline: self
+    file: fluentd-s3-github/ci/pipeline.yml
+
+- name: build-fluentd-s3-image
+  public: true
+  serial: true
+  plan:
+  - in_parallel:
+    - get: fluentd-s3-docker-tag
+      params: {bump: minor}
+    # Download Dockerfile
+    - get: fluentd-s3-github
+      trigger: true
+      passed: [set-pipeline]
+    # Trigger on base image updates
+    - get: base-image
+      trigger: true
+  - put: fluentd-s3-image
+    params:
+      build: fluentd-s3-github
+      tag_file: fluentd-s3-docker-tag/version
+      tag_as_latest: true
+  - put: fluentd-s3-github
+    params:
+      repository: fluentd-s3-github
+      tag: fluentd-s3-docker-tag/version
+      only_tag: true
+  - put: fluentd-s3-docker-tag
+    params: {file: fluentd-s3-docker-tag/version}
