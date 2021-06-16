@@ -4,7 +4,7 @@ FROM fluent/fluentd:v1.11-1
 USER root
 
 RUN apk add --no-cache --update --virtual .build-deps \
-  sudo build-base ruby-dev curl \
+  sudo build-base ruby-dev \
   && sudo gem install fluent-plugin-s3 \
   && sudo gem sources --clear-all \
   && apk del .build-deps \
